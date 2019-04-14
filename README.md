@@ -12,7 +12,8 @@
     4. 单机并发用户30w+
 
 ## 架构图
-    ![架构图](https://raw.githubusercontent.com/StonyShi/message-channel/master/flows/cluster-flow.png)
+![架构图](https://github.com/StonyShi/message-channel/blob/master/flows/cluster-flow.png)
+ 
     
 ## 主要模块
 
