@@ -10,6 +10,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -28,13 +30,92 @@ public class ChannelManager {
     private final Set<Subscribe> subscribeSet;
     private final Set<RegisterInfoHolder> deviceRegisterSet;
     private Consumer<RegisterInfoHolder> deviceRegisterCallback;
+    private final Map<String, ChatSession> chatSessionMap;
+    private int serverPort;
+    private String serverName;
+
     private ChannelManager() {
         this.contextMap = new ConcurrentHashMap<>(1024);
         this.serverInfoMap = new ConcurrentHashMap<>(1024);
         this.subscribeSet = new ConcurrentHashSet<Subscribe>(1024);
         this.deviceRegisterSet = new ConcurrentHashSet<RegisterInfoHolder>(1024);
+        this.chatSessionMap = new ConcurrentHashMap<String, ChatSession>(1024);
     }
 
+    private final Lock chatSessionLock = new ReentrantLock();
+    public ChatSession getChatSession(String chatId) {
+        return chatSessionMap.get(chatId);
+    }
+    public ChatSession createChatSession(String chatId, String worker) {
+        ChatSession chatSession = chatSessionMap.get(chatId);
+        if(chatSession == null) {
+            chatSessionLock.lock();
+            try {
+                chatSession = chatSessionMap.get(chatId);
+                if(chatSession == null) {
+                    chatSession = new ChatSession();
+                    chatSession.setChatId(chatId);
+                    chatSession.setLeaderWorker(worker);
+                    chatSessionMap.put(chatId, chatSession);
+                    return chatSession;
+                }
+            } finally {
+                chatSessionLock.unlock();
+            }
+        }
+        return chatSession;
+    }
+    /** worker 需要保存上下文 **/
+    public ChatSession updateChatSession(String chatId, ChannelHandlerContext ctx) {
+        return updateChatSession(chatId, ctx, true);
+    }
+
+    /**
+     *
+     * @param chatId
+     * @param ctx
+     * @param saveContext  true    Worker需要保存上下文holder, holder是客户端,
+     *                     false   Master不需要保存上下文holder， holder是Worker
+     * @return
+     */
+    public ChatSession updateChatSession(String chatId, ChannelHandlerContext ctx, boolean saveContext) {
+        ChatSession chatSession = chatSessionMap.get(chatId);
+        if(chatSession == null) {
+            ChannelContextHolder holder = new ChannelContextHolder(ctx);
+            //新建会话
+            logger.info(String.format("聊天会话新建：cid=%s, leader=%s",
+                    chatId,
+                    holder.getAddress()));
+            chatSession = new ChatSession();
+            chatSession.setChatId(chatId);
+            if(saveContext) {
+                chatSession.setLeader(holder);
+            } else {
+                chatSession.setLeaderWorker(holder.getAddress());
+            }
+            chatSession.setCreateLeader(true);
+            chatSessionMap.put(chatId, chatSession);
+            return chatSession;
+        }
+        //分布在同一台Worker
+        if(chatSession.consistencyWorker()) {
+            return chatSession;
+        }
+        //更新会话
+        ChannelContextHolder holder = new ChannelContextHolder(ctx);
+        if (saveContext) {
+            chatSession.setFollower(holder);
+        } else {
+            chatSession.setFollowerWorker(holder.getAddress());
+        }
+        chatSession.setUpdateTime(System.currentTimeMillis());
+        chatSession.setCreateLeader(false);
+        logger.info(String.format("聊天会话更新：cid=%s, leader=%s, follower=%s",
+                chatId,
+                saveContext ? chatSession.getLeaderAddress() : chatSession.getLeaderWorker(),
+                holder.getAddress()));
+        return chatSession;
+    }
     public boolean deviceRegister(RegisterInfoHolder info) {
         if(Utils.isEmpty(info.getInfo().getAddress())) {
             info.getInfo().setAddress(NetUtils.getChannelHostPort(info.getCtx()).line());
@@ -206,6 +287,20 @@ public class ChannelManager {
 
     public boolean hasLive() {
         return !contextMap.isEmpty();
+    }
+
+    public void setServerPort(int serverPort) {
+        this.serverPort = serverPort;
+    }
+    public void setServerName(String serverName) {
+        this.serverName = serverName;
+    }
+
+    public int getServerPort() {
+        return serverPort;
+    }
+    public String getServerName() {
+        return serverName;
     }
 
 }

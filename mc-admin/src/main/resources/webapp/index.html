@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/iview@3.3.3/dist/styles/iview.css">
+    <script type="text/javascript" src="http://vuejs.org/js/vue.min.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/iview@3.3.3/dist/iview.min.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/vue-resource@1.5.1/dist/vue-resource.min.js"></script>
+    <title>Document</title>
+    <style scoped>
+        .layout{
+            border: 1px solid #d7dde4;
+            background: #f5f7f9;
+            position: relative;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .layout-header-bar{
+            background: #fff;
+            box-shadow: 0 1px 1px rgba(0,0,0,.1);
+        }
+        .layout-logo-left{
+            width: 90%;
+            height: 30px;
+            background: #5b6270;
+            border-radius: 3px;
+            margin: 15px auto;
+        }
+        .menu-icon{
+            transition: all .3s;
+        }
+        .rotate-icon{
+            transform: rotate(-90deg);
+        }
+        .menu-item span{
+            display: inline-block;
+            overflow: hidden;
+            width: 69px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            vertical-align: bottom;
+            transition: width .2s ease .2s;
+        }
+        .menu-item i{
+            transform: translateX(0px);
+            transition: font-size .2s ease, transform .2s ease;
+            vertical-align: middle;
+            font-size: 16px;
+        }
+        .collapsed-menu span{
+            width: 0px;
+            transition: width .2s ease;
+        }
+        .collapsed-menu i{
+            transform: translateX(5px);
+            transition: font-size .2s ease .2s, transform .2s ease .2s;
+            vertical-align: middle;
+            font-size: 22px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="layout">
+        <layout>
+            <sider ref="side1" hide-trigger collapsible :collapsed-width="78" v-model="isCollapsed">
+                <i-menu active-name="1-2" theme="dark" width="auto" :class="menuitemClasses">
+                    <menu-item name="1-1">
+                        <Icon type="ios-stats"></Icon>
+                        <span>概括</span>
+                    </menu-item>
+                    <menu-item name="1-2">
+                        <Icon type="ios-list"></Icon>
+                        <span>Worker列表</span>
+                    </menu-item>
+                    <menu-item name="1-3">
+                        <Icon type="ios-snow"></Icon>
+                        <span>Worker详情</span>
+                    </menu-item>
+                    <menu-item name="1-4">
+                        <Icon type="ios-text"></Icon>
+                        <span>消息推送</span>
+                    </menu-item>
+                </i-menu>
+            </sider>
+            <layout>
+                <i-header :style="{padding: 0}" class="layout-header-bar">
+                    <icon @click.native="collapsedSider" :class="rotateIcon" :style="{margin: '0 20px'}" type="md-menu" size="26"></icon>
+                </i-header>
+                <layout :style="{padding: '0 5px 5px'}">
+                    <breadcrumb :style="{margin: '5px 0'}">
+                        <breadcrumb-item>主页</breadcrumb-item>
+                        <breadcrumb-item>Worker列表</breadcrumb-item>
+                    </breadcrumb>
+<!--                    <i-content :style="{padding: '24px', minHeight: '280px', background: '#fff'}">-->
+<!--                        Content-->
+<!--                    </i-content>-->
+                <i-content :style="{margin: '10px', background: '#fff', minHeight: minBodyHeight}">
+                    <i-table stripe border  :columns="t_columns" :data="t_data">
+
+                    </i-table>
+                    <div style="margin: 10px;overflow: hidden">
+                        <div style="float: right;">
+                            <Page :total="100" :current="1" @on-change="changePage"></Page>
+                        </div>
+                    </div>
+                </i-content>
+                </layout>
+            </layout>
+        </layout>
+    </div>
+</div>
+<script>
+    function getNumber(v) {
+        if(v >= 10) {
+            return v;
+        }
+        return "0" + v;
+    }
+    function simpleFromatDateTime(ms) {
+        if(typeof ms === "undefined") {
+            return "---";
+        }
+        var d = new Date(ms);
+        return d.getFullYear() + "-" + getNumber(d.getMonth()) + "-" + getNumber(d.getDate()+1) + " "
+            + (getNumber(d.getHours())) + ":" + getNumber(d.getMinutes()) + ":" + getNumber(d.getSeconds())
+    }
+    new Vue({
+        el: '#app',
+        data:  {
+            isCollapsed: false,
+            t_columns: [
+                {
+                    title: '机器ID',
+                    key: 'machine_id',
+                    width: 160
+                    ,fixed: "left"
+                },
+                {
+                    title: '地址',
+                    key: 'address',
+                    width: 120
+                    ,fixed: "left"
+                },
+                {
+                    title: '状态',
+                    key: 'update_time'
+                    ,width: 180
+                    ,render: function(h, params) {
+                        return h("p", {}, params.row.update_time > new Date().getTime()-9000)
+                    }
+                },
+                {
+                    title: '当前连接',
+                    key: 'connection_count'
+                    ,sortable: true
+                    ,width: 90
+                },
+                {
+                    title: '连接错误',
+                    key: 'connection_error_count'
+                    ,width: 150
+                },
+                {
+                    title: '最大连接',
+                    key: 'max_connection_count'
+                    ,width: 150
+                },
+                {
+                    title: '请求总数',
+                    key: 'request_total_count'
+                    ,width: 150
+                },
+                {
+                    title: '请求总字节',
+                    key: 'request_total_bytes'
+                    ,width: 150
+                },
+                {
+                    title: '响应总次数',
+                    key: 'response_total_count'
+                    ,width: 150
+                },
+                {
+                    title: '响应总成功数',
+                    key: 'response_total_succeed_count'
+                    ,width: 150
+                },
+                {
+                    title: '响应总失败数',
+                    key: 'response_total_failed_count'
+                    ,width: 150
+                },
+                {
+                    title: '响应总耗时',
+                    key: 'response_total_time_ms',
+                    width: 150,
+                    render: function(h, params) {
+                        return h("p", {}, params.row.response_total_time_ms + "ms")
+                    }
+                },
+                {
+                    title: '响应总字节',
+                    key: 'response_total_bytes'
+                    ,width: 150
+                },
+                {
+                    title: '订阅数量',
+                    key: 'subscriber_count'
+                    ,width: 150
+                },
+                {
+                    title: '订阅消息数',
+                    key: 'subscriber_message_count'
+                    ,width: 150
+                },
+                {
+                    title: '创建时间',
+                    key: 'created_time'
+                    ,width: 180
+                    ,render: function(h, params) {
+                        return h("p", {}, simpleFromatDateTime(params.row.created_time))
+                    }
+                },
+                {
+                    title: '更新时间',
+                    key: 'update_time'
+                    ,width: 180
+                    ,render: function(h, params) {
+                        return h("p", {}, simpleFromatDateTime(params.row.update_time))
+                    }
+                },
+                {
+                    title: 'Action',
+                    key: 'action',
+                    width: 150,
+                    align: 'center',
+                    // fixed: "right",
+                    render: (h, params) => {
+                        return h('div', [
+                            h('Button', {
+                                props: {
+                                    type: 'primary',
+                                    size: 'small'
+                                },
+                                style: {
+                                    marginRight: '5px'
+                                },
+                                on: {
+                                    click: () => {
+                                        this.show(params.index)
+                                    }
+                                }
+                            }, 'View'),
+                            h('Button', {
+                                props: {
+                                    type: 'error',
+                                    size: 'small'
+                                },
+                                on: {
+                                    click: () => {
+                                        this.remove(params.index)
+                                    }
+                                }
+                            }, 'Delete')
+                        ]);
+                    }
+                }
+            ],
+            t_data: []
+        },
+        mounted: function() {
+            this.requestTableData()
+        },
+        computed: {
+            minBodyHeight() {
+                return window.outerHeight-210 + "px";
+            },
+            rotateIcon () {
+                return [
+                    'menu-icon',
+                    this.isCollapsed ? 'rotate-icon' : ''
+                ];
+            },
+            menuitemClasses () {
+                return [
+                    'menu-item',
+                    this.isCollapsed ? 'collapsed-menu' : ''
+                ]
+            }
+        },
+        methods: {
+            collapsedSider () {
+                this.$refs.side1.toggleCollapse();
+            },
+            show (index) {
+                this.$Modal.info({
+                    title: 'User Info',
+                    content: `Name：${this.t_data[index].name}<br>Age：${this.t_data[index].age}<br>Address：${this.t_data[index].address}`
+                })
+            },
+            remove (index) {
+                this.t_data.splice(index, 1);
+            },
+            changePage () {
+                // The simulated data is changed directly here, and the actual usage scenario should fetch the data from the server
+                this.requestTableData();
+            },
+            requestTableData () {
+                this.$http.get('/v1/list').then(response => {
+                    // get body data
+                    this.t_data = response.body;
+                }, response => {
+                    // error callback
+                });
+            }
+        }
+    });
+</script>
+</body>
+</html>

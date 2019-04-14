@@ -10,6 +10,7 @@
     <modules>
         <module>mc-core</module>
         <module>mc-dome</module>
+        <module>mc-admin</module>
     </modules>
     <packaging>pom</packaging>
 

@@ -5,14 +5,16 @@ import com.stony.mc.future.ResultFuture;
 import com.stony.mc.ids.IdGenerator;
 import com.stony.mc.ids.SimpleIdGenerator;
 import com.stony.mc.listener.BalanceListener;
+import com.stony.mc.listener.BusinessHandler;
+import com.stony.mc.listener.ComposeHandler;
 import com.stony.mc.listener.SubscribeListener;
+import com.stony.mc.manager.ChannelContextHolder;
+import com.stony.mc.manager.ChatSession;
 import com.stony.mc.manager.RegisterInfo;
 import com.stony.mc.manager.RegisterInfoHolder;
 import com.stony.mc.metrics.MetricStatistics;
-import com.stony.mc.protocol.ExchangeName;
-import com.stony.mc.protocol.ExchangeProtocol;
-import com.stony.mc.protocol.ExchangeStatus;
-import com.stony.mc.protocol.ExchangeTypeEnum;
+import com.stony.mc.protocol.*;
+import io.netty.channel.ChannelHandlerContext;
 
 import java.io.Closeable;
 import java.net.ConnectException;
@@ -30,7 +32,7 @@ import java.util.function.Consumer;
  * @version 下午5:49
  * @since 2019/1/15
  */
-public class WorkerServer extends BaseServer<WorkerServer> implements BalanceListener, Consumer<RegisterInfoHolder> {
+public class WorkerServer extends BaseServer<WorkerServer> implements Consumer<RegisterInfoHolder> {
 
     private long heartbeatMS = 3000L;
     private final MetricStatistics metricStatistics;
@@ -40,11 +42,26 @@ public class WorkerServer extends BaseServer<WorkerServer> implements BalanceLis
     private boolean balance = false;
     private BaseClient masterLive;
     private int masterReties = 1;
+    private final BalanceListener balanceHandler;
+    private final BusinessHandler businessHandler;
 
     IdGenerator idWorker = SimpleIdGenerator.getInstance();
 
     public WorkerServer(String serverName, int serverPort, String[] masterServers, MetricStatistics metricStatistics) {
         super(serverName, serverPort);
+        this.balanceHandler = (BalanceListener) this::doBalance;
+        businessHandler = new BusinessHandler() {
+            /** worker内处理chat逻辑 */
+            @Override
+            public boolean support(ExchangeTypeEnum typeEnum) {
+                return ExchangeTypeEnum.CHAT == typeEnum;
+            }
+            @Override
+            public ExchangeProtocol handle(ExchangeProtocolContext request) {
+                return doHandle(request);
+            }
+        };
+        subscribeListener(businessHandler);
         this.metricStatistics = Objects.requireNonNull(metricStatistics, "metricStatistics must be not null");
         setMetricStatistics(metricStatistics);
         initMasterHostPart(Objects.requireNonNull(masterServers, "master servers must be not null"));
@@ -76,14 +93,13 @@ public class WorkerServer extends BaseServer<WorkerServer> implements BalanceLis
         }
     }
     private void startHeartbeatThread() {
-        final SubscribeListener subscribeListener = this;
         final String serverName = getServerName();
         final int serverPort = getServerPort();
         Thread t = new Thread(new Runnable() {
             @Override
             public void run() {
                 BaseClient heartbeat = new BaseClient(){};
-                heartbeat.setSubscribeListener(subscribeListener);
+                heartbeat.setSubscribeListener(balanceHandler);
                 beat_loop:
                 while (heartbeatRunning) {
                     HostPort masterServer = masterHostPorts[0];
@@ -158,8 +174,7 @@ public class WorkerServer extends BaseServer<WorkerServer> implements BalanceLis
         return this;
     }
 
-    @Override
-    public void onBalance(Integer value) {
+    private void doBalance(Integer value) {
         if(balance) {
             getChannelManager().balanceServer(value);
         }
@@ -186,6 +201,67 @@ public class WorkerServer extends BaseServer<WorkerServer> implements BalanceLis
                                 .json(JSONObject.toJSONString(info), null, null)
                 );
             });
+        }
+    }
+
+    private ExchangeProtocol doHandle(ExchangeProtocolContext request) {
+        //value, name, key : msg, chatId, status
+        String chatId = request.getBody().getName();
+        //ChatSession.ChatStatus
+        String status = request.getBody().getKey();
+        ChatSession chatSession = getChannelManager().getChatSession(chatId);
+        HostPort hostPort = new HostPort(getServerName(), getServerPort());
+        //value, name, key : hostPort, chatId, status
+        ExchangeProtocol masterRequest = ExchangeProtocol.
+                create(request.getId()).
+                type(request.getType()).
+                json(hostPort.toJson(), chatId, status);
+        if (chatSession == null) {
+            return updateMaster(masterRequest, chatId, request.getCtx());
+        }
+        //update
+        if(chatSession.already()) {
+            ChannelContextHolder toChannel = chatSession.toChannel(request.getCtx());
+            if(chatSession.consistencyWorker()) {
+                //转发给to
+                toChannel.getCtx().writeAndFlush(ExchangeProtocol.
+                        create(request.getId()).
+                        type(request.getType()).
+                        json(hostPort.toJson(), chatId, status)
+                );
+                return ExchangeProtocol.ack(request.getId()); //ack from
+            } else {
+                return ExchangeProtocol.ack(request.getId()).status(ExchangeStatus.wrap(500, chatSession.toString()));
+            }
+        } else {
+            return updateMaster(masterRequest, chatId, request.getCtx());
+        }
+    }
+    private ExchangeProtocol updateMaster(ExchangeProtocol request, String chatId, ChannelHandlerContext ctx) {
+        //value, name, key : hostPort, chatId, status
+        ResultFuture resultFuture = this.masterLive.submit(request);
+        try {
+            ExchangeProtocol response = resultFuture.get(2, TimeUnit.SECONDS);
+            //重定向
+            if (response.getStatus().getCode() == ExchangeStatus.TEMPORARY_REDIRECT.getCode()) {
+                String redirectWorker = response.getBody().getFormatValue();
+                return ExchangeProtocol.ack(request.getId())
+                        .status(ExchangeStatus.wrap(ExchangeStatus.TEMPORARY_REDIRECT.getCode(), redirectWorker));
+            }
+
+            if(!response.getStatus().isOk()) {
+                //todo master返回异常处理
+            }
+            //Master成功后更新到worker
+            String worker = response.getBody().getFormatValue();
+            ChatSession chatSession = getChannelManager().updateChatSession(chatId, ctx);
+            chatSession.updateWorker(worker);
+            logger.info("更新聊天会话: {}", chatSession);
+            return ExchangeProtocol.ack(request.getId());
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            e.printStackTrace();
+            return ExchangeProtocol.ack(request.getId())
+                    .status(ExchangeStatus.SERVICE_UNAVAILABLE);
         }
     }
 }

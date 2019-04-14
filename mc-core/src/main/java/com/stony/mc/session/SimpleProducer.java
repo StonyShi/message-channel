@@ -6,6 +6,7 @@ import com.stony.mc.Utils;
 import com.stony.mc.future.ResultFuture;
 import com.stony.mc.ids.IdGenerator;
 import com.stony.mc.ids.SimpleIdGenerator;
+import com.stony.mc.manager.ChatSession;
 import com.stony.mc.manager.RegisterInfo;
 import com.stony.mc.protocol.ExchangeProtocol;
 import com.stony.mc.protocol.ExchangeStatus;
@@ -256,11 +257,33 @@ public class SimpleProducer extends BaseClient {
             return sendJson(topic, key, JSONObject.toJSONString(v));
         }
     }
-
+    public ResultFuture createChat(String chatId) {
+        return delegateClient.submit(
+                ExchangeProtocol.create(idWorker.nextId())
+                        .type(ExchangeTypeEnum.CHAT)
+                        .text(chatId, chatId, ChatSession.ChatStatus.CREATE.name())
+        );
+    }
+    public ResultFuture destroyChat(String chatId) {
+        return delegateClient.submit(
+                ExchangeProtocol.create(idWorker.nextId())
+                        .type(ExchangeTypeEnum.CHAT)
+                        .text(chatId, chatId, ChatSession.ChatStatus.DESTROY.name())
+        );
+    }
+    public ResultFuture sendChat(String chatId, String value) {
+        return delegateClient.submit(
+                ExchangeProtocol.create(idWorker.nextId())
+                        .type(ExchangeTypeEnum.CHAT)
+                        .text(value, chatId, ChatSession.ChatStatus.SESSION.name())
+        );
+    }
 
     public void setIdWorker(IdGenerator idWorker) {
         this.idWorker = idWorker;
     }
+
+
 
     class InnerProducerClient extends BaseClient<InnerProducerClient>{
         public InnerProducerClient(int timeoutMs) {

@@ -291,6 +291,37 @@ public class ServerHandler extends SimpleChannelInboundHandler<ExchangeProtocol>
                 }
                 break;
             case CHAT:
+                //worker 自定义处理
+                if (supportBusiness(value)) {
+                    doCustomHandle(new ExchangeResponseConsumer(value, ctx) {
+                        @Override
+                        public void accept(ChannelHandlerContext curCtx, ExchangeProtocol response) {
+                            doWriteAndFlush(curCtx, response);
+                        }
+                    });
+                } else {
+                    //master 默认处理
+                    String chatId = value.getBody().getName();
+                    ChatSession.ChatStatus status = ChatSession.ChatStatus.valueOf(value.getBody().getKey());
+                    ChatSession chatSession = channelManager.updateChatSession(chatId, ctx, false);
+                    if (chatSession.isCreateLeader()) {
+                        //ack leader
+                        doWriteAndFlush(ctx, ExchangeProtocol.ack(value.getId()).text(chatSession.getLeaderWorker(), null, null));
+                    } else {
+                        //已建立
+                        if(chatSession.consistencyWorker()) {
+                            //ack follower
+                            doWriteAndFlush(ctx, ExchangeProtocol.ack(value.getId()).text(chatSession.getFollowerWorker(), null, null));
+                        } else {
+                            //ack follower重定向
+                            doWriteAndFlush(ctx, ExchangeProtocol.ack(value.getId()).
+                                    text(chatSession.getLeaderWorker(),null, null).
+                                    status(ExchangeStatus.wrap(307, chatSession.getLeaderWorker()))
+                            );
+                            logger.warn("worker not consistency, leader={}, follower={}", chatSession.getLeaderWorker(), chatSession.getFollowerWorker());
+                        }
+                    }
+                }
             case PING:
                 if (supportBusiness(value)) {
                     doCustomHandle(new ExchangeResponseConsumer(value, ctx) {

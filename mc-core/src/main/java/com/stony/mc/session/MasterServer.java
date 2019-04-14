@@ -2,6 +2,7 @@ package com.stony.mc.session;
 
 import com.alibaba.fastjson.JSONObject;
 import com.stony.mc.Utils;
+import com.stony.mc.dao.WorkerDao;
 import com.stony.mc.ids.IdGenerator;
 import com.stony.mc.ids.SimpleIdGenerator;
 import com.stony.mc.listener.BusinessHandler;
@@ -9,6 +10,8 @@ import com.stony.mc.manager.ChannelManager;
 import com.stony.mc.manager.RegisterInfo;
 import com.stony.mc.manager.ServerInfo;
 import com.stony.mc.protocol.*;
+
+import java.sql.SQLException;
 
 /**
  * <p>message-channel
@@ -21,6 +24,7 @@ import com.stony.mc.protocol.*;
 public class MasterServer extends BaseServer<MasterServer> implements BusinessHandler {
 
     IdGenerator idWorker = SimpleIdGenerator.getInstance();
+    WorkerDao workerDao = new WorkerDao();
     public MasterServer(String serverName, int serverPort) {
         super(serverName, serverPort);
     }
@@ -59,6 +63,13 @@ public class MasterServer extends BaseServer<MasterServer> implements BusinessHa
         if (Utils.isEmpty(serverInfo.getServerName())) {
             serverInfo.setServerName(request.getRemoteAddress().getHost());
         }
+
+        try {
+            workerDao.updateWorkerInfoALL(serverInfo);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
         logger.trace("Server {}, connections: {}.",serverInfo.getAddress() ,serverInfo.getConnectionCount());
 
         long avg = channelManager.updateServerInfo(serverInfo);

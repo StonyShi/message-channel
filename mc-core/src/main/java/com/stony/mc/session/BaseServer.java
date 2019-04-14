@@ -145,6 +145,8 @@ public abstract class BaseServer<T extends BaseServer> implements MCServer, Clos
                     server.bind(serverName, serverPort).sync();
             this.originChannel = future.channel();
             this.channelId = originChannel.id();
+            channelManager.setServerName(serverName);
+            channelManager.setServerPort(serverPort);
             logger.info("Startup server : {}", originChannel.toString());
         }
         return this;

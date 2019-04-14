@@ -3,6 +3,7 @@ package com.stony.mc.session;
 import com.stony.mc.future.ResultFuture;
 import com.stony.mc.ids.IdGenerator;
 import com.stony.mc.ids.SimpleIdGenerator;
+import com.stony.mc.listener.ChatListener;
 import com.stony.mc.listener.SubscribeListener;
 import com.stony.mc.listener.TopicRecord;
 import com.stony.mc.listener.TopicRecordListener;
@@ -18,6 +19,7 @@ import java.lang.management.RuntimeMXBean;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
 import static java.lang.management.ManagementFactory.getRuntimeMXBean;
 import static java.lang.management.ManagementFactory.getOperatingSystemMXBean;
@@ -149,6 +151,48 @@ public class WorkerServerTest {
         producer.shutdown();
     }
 
+    String chatId = "131415678";
+    @Test
+    public void test_chat_01() throws Exception {
+        SimpleProducer producer = new SimpleProducer(3000, new String[]{"localhost:4088"});
+        producer.connect();
+        producer.createChat(chatId);
+        TimeUnit.SECONDS.sleep(50);
+        producer.sendChat(chatId, "我好呀！");
+        producer.shutdown();
+    }
+    @Test
+    public void test_chat_02() throws Exception {
+        SimpleProducer producer = new SimpleProducer(3000, new String[]{"localhost:4088"});
+        producer.connect();
+        TimeUnit.SECONDS.sleep(15);
+        producer.createChat(chatId);
+        producer.sendChat(chatId, "你好呀！");
+        producer.shutdown();
+    }
+    @Test
+    public void test_chat() throws Exception {
+        SimpleProducer producer = new SimpleProducer(3000, new String[]{"localhost:4088"});
+        producer.setSubscribeListener((ChatListener) v -> System.out.println("Chat : " + v));
+        producer.connect();
+        producer.createChat(chatId);
+
+        SimpleProducer producer2 = new SimpleProducer(3000, new String[]{"localhost:4088"});
+        producer2.setSubscribeListener((ChatListener) v -> System.out.println("Chat : " + v));
+        producer2.connect();
+        producer2.createChat(chatId);
+
+        ResultFuture f1 = producer.sendChat(chatId, "我说一！");
+        ResultFuture f2 = producer2.sendChat(chatId, "你说22！");
+
+        System.out.println("---------------f11111  ");
+        System.out.println(f1.get());
+        System.out.println("---------------f2222  ");
+        System.out.println(f2.get());
+        producer.shutdown();
+        producer2.shutdown();
+
+    }
     @Test
     public void test_balance() throws InterruptedException {
         List<BaseClient> list = new ArrayList<>();

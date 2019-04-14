@@ -75,4 +75,8 @@ public class ChannelContextHolder {
                 ", lastProcessingTime=" + lastProcessingTime +
                 '}';
     }
+
+    public boolean isLive() {
+        return ctx.channel() != null && ctx.channel().isOpen();
+    }
 }

@@ -2,9 +2,11 @@ package com.stony.mc.manager;
 
 import com.alibaba.fastjson.annotation.JSONCreator;
 import com.alibaba.fastjson.annotation.JSONField;
+import com.stony.mc.session.HostPort;
 
 import java.io.Serializable;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -53,6 +55,12 @@ public class ServerInfo implements Serializable{
 
     @JSONField(name = "env")
     private ServerEnvironment env;
+
+    @JSONField(name = "connection_list")
+    private List<HostPort> connectionList;
+
+    @JSONField(name = "update_time")
+    private long updateTime;
 
     @JSONCreator
     public ServerInfo(@JSONField(name = "server_name") String serverName,
@@ -193,6 +201,22 @@ public class ServerInfo implements Serializable{
         this.createdTime = createdTime;
     }
 
+    public void setUpdateTime(long updateTime) {
+        this.updateTime = updateTime;
+    }
+
+    public long getUpdateTime() {
+        return updateTime;
+    }
+
+    public void setConnectionList(List<HostPort> connectionList) {
+        this.connectionList = connectionList;
+    }
+
+    public List<HostPort> getConnectionList() {
+        return connectionList;
+    }
+
     public ServerEnvironment getEnv() {
         return env;
     }
@@ -237,13 +261,16 @@ public class ServerInfo implements Serializable{
                 ", subscriberCount=" + subscriberCount +
                 ", subscriberMessageCount=" + subscriberMessageCount +
                 ", env=" + env +
+                ", connectionList=" + connectionList +
                 ", createdTime=" + createdTime +
+                ", updateTime=" + updateTime +
                 '}';
     }
     final static ServerInfoComparator comparator = new ServerInfoComparator();
     public static Comparator<ServerInfo> getComparator() {
         return comparator;
     }
+
     final static class ServerInfoComparator implements Comparator<ServerInfo> {
         @Override
         public int compare(ServerInfo o1, ServerInfo o2) {
