@@ -12,7 +12,7 @@
     4. 单机并发用户30w+
 
 ## 架构图
-![架构图](https://github.com/StonyShi/message-channel/blob/master/flows/cluster-flow.png)
+![架构图](https://github.com/StonyShi/message-channel/blob/master/flows/cluster-flow_jg.png)
  
     
 ## 主要模块
@@ -37,6 +37,18 @@
 #### Consumer
     1. 消防topic消息 
     2. 广播消息到APP
+    
+## 聊天会话
+    1. app-A发起聊天，在worker注册管理会话信息（id，app-A通道，A-worker地址）
+    2. worker向master注册会话(Id,A-worker地址)
+    3. app-B连接聊天Id，在worker注册
+    4. 先在master查找id，匹配B-worker与发起者是否一致，不一致返回307重定向到A-worker地址
+    
+    
+## 会话流程图
+![会话流程图](https://github.com/StonyShi/message-channel/blob/master/flows/chat-flow.png)
+    
+ 
     
     
     
