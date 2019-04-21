@@ -109,6 +109,12 @@ public abstract class BaseServer<T extends BaseServer> implements MCServer, Clos
         return this.serverPort;
     }
 
+    /**
+     * <p>eventLoop 默认大小cpu*2， 系统参数 io.netty.eventLoopThreads</p>
+     * <p>并发压力不大建议设置为1</p>
+     * @return Server
+     * @throws Exception 启动异常
+     */
     public Closeable startup() throws Exception {
         if (startup.compareAndSet(false, true)) {
             this.boss = new NioEventLoopGroup();

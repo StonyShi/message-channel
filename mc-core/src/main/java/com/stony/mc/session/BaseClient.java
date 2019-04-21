@@ -80,6 +80,15 @@ public abstract class BaseClient<T extends BaseClient> implements MCClient, Idle
     public T connect() throws Exception {
         return (T) this.connect(this.serverHost, this.serverPort);
     }
+
+    /**
+     * <p>eventLoop 默认大小cpu*2， 系统参数 io.netty.eventLoopThreads</p>
+     * <p>如果单线程调用，建议设置为1</p>
+     * @param serverHost 服务ip地址
+     * @param serverPort 服务端口
+     * @return Client
+     * @throws Exception 连接异常
+     */
     public T connect(String serverHost, int serverPort) throws Exception {
         if(connected.compareAndSet(false, true) || !isLive()) {
             this.serverHost = serverHost;
