@@ -1,5 +1,6 @@
 package com.stony.mc.session;
 
+import com.alibaba.fastjson.JSON;
 import com.stony.mc.ResourceManger;
 import com.stony.mc.Utils;
 import com.stony.mc.concurrent.NamedThreadFactory;
@@ -8,6 +9,7 @@ import com.stony.mc.future.ResultFuture;
 import com.stony.mc.ids.IdGenerator;
 import com.stony.mc.ids.SimpleIdGenerator;
 import com.stony.mc.listener.*;
+import com.stony.mc.manager.RegisterInfoFilter;
 import com.stony.mc.manager.SubscribeInfo;
 import com.stony.mc.protocol.ExchangeProtocol;
 import com.stony.mc.protocol.ExchangeStatus;
@@ -245,7 +247,32 @@ public class SimpleConsumer extends BaseClient implements SubscribeListener {
             logger.error("Interrupted while waiting for shutdown.", e);
         }
     }
-
+    public void broadcast(String v) {
+        if(!connected.get()) {
+            throw new RuntimeException("Consumer not connected.");
+        }
+        long id = idWorker.nextId();
+        RegisterInfoFilter infoFilter = new RegisterInfoFilter();
+        infoFilter.setMessage(v);
+        List<ResultFuture> futureList = new ArrayList<>(8);
+        for (InnerConsumerClient worker: delegateClients.values()) {
+            if (worker.isLive()) {
+                futureList.add(worker.doBroadcast(id, JSON.toJSONString(infoFilter)));
+            }
+        }
+        //TODO 结果处理优化
+        for (ResultFuture rf : futureList) {
+            try {
+                logger.info("广播结果： " + rf.get(3, TimeUnit.SECONDS));
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+            } catch (TimeoutException e) {
+                e.printStackTrace();
+            }
+        }
+    }
     public void subscribe(String group, String topic, String key, TopicRecordListener listener) {
         Objects.requireNonNull(group, "group must be not null.");
         Objects.requireNonNull(topic, "topic must be not null.");
@@ -260,7 +287,7 @@ public class SimpleConsumer extends BaseClient implements SubscribeListener {
             if(worker.isLive()) {
                 ResultFuture future = worker.doSubscribe(idWorker.nextId(), subscribeInfo);
                 try {
-                    ExchangeProtocol v = future.get(6, TimeUnit.SECONDS);
+                    ExchangeProtocol v = future.get(3, TimeUnit.SECONDS);
                     if(v.getStatus().isOk()) {
                         logger.info("subscribe to {} succeed.", worker.getServerAddress());
                     } else {
@@ -321,6 +348,13 @@ public class SimpleConsumer extends BaseClient implements SubscribeListener {
                     subscribeInfo.getTopic(),
                     subscribeInfo.getKey()));
         }
+        public ResultFuture doBroadcast(long id, String v) {
+            return submit(
+                    ExchangeProtocol.create(id)
+                    .type(ExchangeTypeEnum.NOTIFY)
+                    .json(v, null, null)
+            );
+        }
         public void reconnect() throws Exception {
             if(!isLive()) {
                 connect();
@@ -371,6 +405,8 @@ public class SimpleConsumer extends BaseClient implements SubscribeListener {
         public boolean isReconnecting() {
             return reconnecting;
         }
+
+
     }
     class DelayConnectionClient {
         InnerConsumerClient client;

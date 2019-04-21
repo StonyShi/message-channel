@@ -34,6 +34,8 @@ public class RegisterInfoFilter implements Serializable, Predicate<RegisterInfo>
     @JSONField(name = "match_alias")
     private Set<String> matchAlias;
 
+    private String message;
+
     public String getUid() {
         return uid;
     }
@@ -146,4 +148,7 @@ public class RegisterInfoFilter implements Serializable, Predicate<RegisterInfo>
         return test;
     }
 
+    public void setMessage(String message) {
+        this.message = message;
+    }
 }

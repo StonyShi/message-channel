@@ -254,6 +254,10 @@ public abstract class BaseClient<T extends BaseClient> implements MCClient, Idle
         return timeoutMs;
     }
 
+    protected ResultFutureStore getFutureStore() {
+        return futureStore;
+    }
+
     public int getIdleReadTime() {
         return idleReadTime;
     }

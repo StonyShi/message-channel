@@ -3,10 +3,7 @@ package com.stony.mc.session;
 import com.stony.mc.future.ResultFuture;
 import com.stony.mc.ids.IdGenerator;
 import com.stony.mc.ids.SimpleIdGenerator;
-import com.stony.mc.listener.ChatListener;
-import com.stony.mc.listener.SubscribeListener;
-import com.stony.mc.listener.TopicRecord;
-import com.stony.mc.listener.TopicRecordListener;
+import com.stony.mc.listener.*;
 import com.stony.mc.manager.RegisterInfo;
 import com.stony.mc.protocol.ExchangeProtocol;
 import com.stony.mc.protocol.ExchangeTypeEnum;
@@ -108,6 +105,16 @@ public class WorkerServerTest {
         consumer.waitTillShutdown();
     }
     @Test
+    public void test_notify() throws Exception {
+        SimpleConsumer consumer = new SimpleConsumer(3000, new String[]{"localhost:4088"});
+        consumer.connect();
+
+        for (int i = 0; i < 10; i++) {
+            consumer.broadcast("同志辛苦了啊" +  i);
+        }
+        consumer.shutdown();
+    }
+    @Test
     public void test_producer_01() throws Exception {
         SimpleProducer producer = new SimpleProducer(3000, new String[]{"localhost:4088"});
         producer.connect();
@@ -116,17 +123,25 @@ public class WorkerServerTest {
         registerInfo.setDevice("android_0122_343");
         System.out.println(producer.register(registerInfo).get());
         System.out.println("------注册完成-------");
-        for (int i = 0; i < 300; i++) {
+
+        producer.setSubscribeListener(new NotifyListener() {
+            @Override
+            public void onNotify(ExchangeProtocol value) {
+                System.out.println("通知： " + value);
+            }
+        });
+        for (int i = 0; i < 30; i++) {
             System.out.println(producer.sendText("ddx", "key_" + i, "value_" + i).get());
         }
         System.out.println("---------发送完成----");
-        Thread.sleep(9000L);
-        for (int i = 0; i < 300; i++) {
+        Thread.sleep(3000L);
+        for (int i = 0; i < 30; i++) {
             System.out.println(producer.sendText("ddx", "key_" + i, "value_" + i).get());
         }
         System.out.println("---------发送完成----");
-        Thread.sleep(9000L);
-        producer.shutdown();
+//        Thread.sleep(9000L);
+//        producer.shutdown();
+        producer.waitTillShutdown();
     }
 
     @Test
@@ -170,20 +185,21 @@ public class WorkerServerTest {
         producer.sendChat(chatId, "你好呀！");
         producer.shutdown();
     }
+
     @Test
     public void test_chat() throws Exception {
         SimpleProducer producer = new SimpleProducer(3000, new String[]{"localhost:4088"});
-        producer.setSubscribeListener((ChatListener) v -> System.out.println("Chat : " + v));
         producer.connect();
+        producer.setSubscribeListener((ChatListener) value -> System.out.println("P1接收: " + value));
         producer.createChat(chatId);
 
         SimpleProducer producer2 = new SimpleProducer(3000, new String[]{"localhost:4088"});
-        producer2.setSubscribeListener((ChatListener) v -> System.out.println("Chat : " + v));
         producer2.connect();
+        producer2.setSubscribeListener((ChatListener) value -> System.out.println("P2接收: " + value));
         producer2.createChat(chatId);
 
-        ResultFuture f1 = producer.sendChat(chatId, "我说一！");
-        ResultFuture f2 = producer2.sendChat(chatId, "你说22！");
+        ResultFuture f1 = producer.sendChat(chatId, "P2你好呀，我是P1");
+        ResultFuture f2 = producer2.sendChat(chatId, "你好P1，我是P2");
 
         System.out.println("---------------f11111  ");
         System.out.println(f1.get());
@@ -264,4 +280,7 @@ public class WorkerServerTest {
             heartbeat.shutdown();
         }
     }
+
+
+
 }

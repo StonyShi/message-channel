@@ -1,5 +1,6 @@
 package com.stony.mc.handler;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.stony.mc.ClockUtils;
 import com.stony.mc.Utils;
@@ -11,6 +12,7 @@ import com.stony.mc.metrics.MetricEventListener;
 import com.stony.mc.protocol.ExchangeProtocol;
 import com.stony.mc.protocol.ExchangeResponseConsumer;
 import com.stony.mc.protocol.ExchangeStatus;
+import com.stony.mc.session.HostPort;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -140,8 +142,11 @@ public class ServerHandler extends SimpleChannelInboundHandler<ExchangeProtocol>
         switch (value.getType()) {
             case NOTIFY:
                 try {
+                    //TODO 通知结果优化，value为过滤信息，不能直接返回
                     doProcessing(ctx, true);
                     List<RegisterInfoHolder> registerList = getDeviceList(value);
+                    logger.debug("通知设备消息： {}", value);
+                    logger.debug("通知设备列表: {}", registerList);
                     if (!registerList.isEmpty()) {
                         updateAsync(() -> registerList
                                         .stream().map(xc -> new ExchangeProtocolHolder(xc.getCtx(), value))
@@ -301,9 +306,11 @@ public class ServerHandler extends SimpleChannelInboundHandler<ExchangeProtocol>
                     });
                 } else {
                     //master 默认处理
+                    //master:  hostPort, chatId, status -> value, name, key
+                    HostPort workerHostPort = JSON.parseObject(value.getBody().getValue(), HostPort.class);
                     String chatId = value.getBody().getName();
                     ChatSession.ChatStatus status = ChatSession.ChatStatus.valueOf(value.getBody().getKey());
-                    ChatSession chatSession = channelManager.updateChatSession(chatId, ctx, false);
+                    ChatSession chatSession = channelManager.updateChatSession(chatId, ctx, workerHostPort);
                     if (chatSession.isCreateLeader()) {
                         //ack leader
                         doWriteAndFlush(ctx, ExchangeProtocol.ack(value.getId()).text(chatSession.getLeaderWorker(), null, null));

@@ -6,8 +6,6 @@ import com.stony.mc.ids.IdGenerator;
 import com.stony.mc.ids.SimpleIdGenerator;
 import com.stony.mc.listener.BalanceListener;
 import com.stony.mc.listener.BusinessHandler;
-import com.stony.mc.listener.ComposeHandler;
-import com.stony.mc.listener.SubscribeListener;
 import com.stony.mc.manager.ChannelContextHolder;
 import com.stony.mc.manager.ChatSession;
 import com.stony.mc.manager.RegisterInfo;
@@ -17,10 +15,8 @@ import com.stony.mc.protocol.*;
 import io.netty.channel.ChannelHandlerContext;
 
 import java.io.Closeable;
-import java.net.ConnectException;
 import java.time.Duration;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
 
@@ -205,30 +201,30 @@ public class WorkerServer extends BaseServer<WorkerServer> implements Consumer<R
     }
 
     private ExchangeProtocol doHandle(ExchangeProtocolContext request) {
-        //value, name, key : msg, chatId, status
+        //app send : value, name, key -> msg, chatId, status
         String chatId = request.getBody().getName();
         //ChatSession.ChatStatus
         String status = request.getBody().getKey();
         ChatSession chatSession = getChannelManager().getChatSession(chatId);
         HostPort hostPort = new HostPort(getServerName(), getServerPort());
-        //value, name, key : hostPort, chatId, status
-        ExchangeProtocol masterRequest = ExchangeProtocol.
-                create(request.getId()).
-                type(request.getType()).
-                json(hostPort.toJson(), chatId, status);
+        //send to master:  hostPort, chatId, status -> value, name, key
+        ExchangeProtocol masterRequest = ExchangeProtocol
+                .create(request.getId())
+                .type(request.getType())
+                .json(hostPort.toJson(), chatId, status);
         if (chatSession == null) {
             return updateMaster(masterRequest, chatId, request.getCtx());
         }
         //update
         if(chatSession.already()) {
-            ChannelContextHolder toChannel = chatSession.toChannel(request.getCtx());
+             ChannelContextHolder toChannel = chatSession.toChannel(request.getCtx());
             if(chatSession.consistencyWorker()) {
                 //转发给to
-                toChannel.getCtx().writeAndFlush(ExchangeProtocol.
-                        create(request.getId()).
-                        type(request.getType()).
-                        json(hostPort.toJson(), chatId, status)
-                );
+                ExchangeProtocol res = ExchangeProtocol
+                        .create(idWorker.nextId())
+                        .type(ExchangeTypeEnum.CHAT)
+                        .body(request.getBody());
+                toChannel.getCtx().writeAndFlush(res);
                 return ExchangeProtocol.ack(request.getId()); //ack from
             } else {
                 return ExchangeProtocol.ack(request.getId()).status(ExchangeStatus.wrap(500, chatSession.toString()));
@@ -256,7 +252,7 @@ public class WorkerServer extends BaseServer<WorkerServer> implements Consumer<R
             String worker = response.getBody().getFormatValue();
             ChatSession chatSession = getChannelManager().updateChatSession(chatId, ctx);
             chatSession.updateWorker(worker);
-            logger.info("更新聊天会话: {}", chatSession);
+            logger.debug("Worker持有聊天会话: \n{}", chatSession);
             return ExchangeProtocol.ack(request.getId());
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             e.printStackTrace();

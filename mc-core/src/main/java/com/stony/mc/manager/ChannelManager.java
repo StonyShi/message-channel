@@ -3,6 +3,7 @@ package com.stony.mc.manager;
 import com.stony.mc.NetUtils;
 import com.stony.mc.Utils;
 import com.stony.mc.concurrent.ConcurrentHashSet;
+import com.stony.mc.session.HostPort;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.concurrent.Future;
 import org.slf4j.Logger;
@@ -67,31 +68,40 @@ public class ChannelManager {
     }
     /** worker 需要保存上下文 **/
     public ChatSession updateChatSession(String chatId, ChannelHandlerContext ctx) {
-        return updateChatSession(chatId, ctx, true);
+        return updateChatSession(chatId, ctx, null);
     }
 
     /**
      *
      * @param chatId
      * @param ctx
-     * @param saveContext  true    Worker需要保存上下文holder, holder是客户端,
-     *                     false   Master不需要保存上下文holder， holder是Worker
+     * @param workerHostPort  null      Worker需要保存上下文holder, holder是客户端,
+     *                        notnull   Master不需要保存上下文holder， holder是Worker
      * @return
      */
-    public ChatSession updateChatSession(String chatId, ChannelHandlerContext ctx, boolean saveContext) {
+    public ChatSession updateChatSession(String chatId, ChannelHandlerContext ctx, HostPort workerHostPort) {
         ChatSession chatSession = chatSessionMap.get(chatId);
+        boolean caveContext = (workerHostPort == null);
+        //TODO 保存会话逻辑、断线重连优化，master会话信息持久化，空闲超时、过期销毁
         if(chatSession == null) {
-            ChannelContextHolder holder = new ChannelContextHolder(ctx);
             //新建会话
-            logger.info(String.format("聊天会话新建：cid=%s, leader=%s",
-                    chatId,
-                    holder.getAddress()));
             chatSession = new ChatSession();
             chatSession.setChatId(chatId);
-            if(saveContext) {
+            ChannelContextHolder holder = new ChannelContextHolder(ctx);
+            //保存channel上下文
+            if(caveContext) {
                 chatSession.setLeader(holder);
+                logger.info(String.format("Worker创建聊天会话：cid=%s, leader=%s",
+                        chatId,
+                        holder.getAddress()));
             } else {
-                chatSession.setLeaderWorker(holder.getAddress());
+                if(Utils.isEmpty(workerHostPort.getHost())) {
+                    workerHostPort.setHost(holder.getHostPort().getHost());
+                }
+                logger.info(String.format("Master创建聊天会话：cid=%s, leaderWorker=%s",
+                        chatId,
+                        workerHostPort.line()));
+                chatSession.setLeaderWorker(workerHostPort.line());
             }
             chatSession.setCreateLeader(true);
             chatSessionMap.put(chatId, chatSession);
@@ -103,17 +113,24 @@ public class ChannelManager {
         }
         //更新会话
         ChannelContextHolder holder = new ChannelContextHolder(ctx);
-        if (saveContext) {
+        if (workerHostPort == null) {
+            logger.info(String.format("Worker更新聊天会话：cid=%s, leader=%s, follower=%s",
+                    chatId,
+                    chatSession.getLeaderAddress(),
+                    holder.getAddress()));
             chatSession.setFollower(holder);
         } else {
-            chatSession.setFollowerWorker(holder.getAddress());
+            if(Utils.isEmpty(workerHostPort.getHost())) {
+                workerHostPort.setHost(holder.getHostPort().getHost());
+            }
+            logger.info(String.format("Master更新聊天会话：cid=%s, leaderWorker=%s, followerWorker=%s,",
+                    chatId,
+                    chatSession.getLeaderWorker(),
+                    workerHostPort.line()));
+            chatSession.setFollowerWorker(workerHostPort.line());
         }
         chatSession.setUpdateTime(System.currentTimeMillis());
         chatSession.setCreateLeader(false);
-        logger.info(String.format("聊天会话更新：cid=%s, leader=%s, follower=%s",
-                chatId,
-                saveContext ? chatSession.getLeaderAddress() : chatSession.getLeaderWorker(),
-                holder.getAddress()));
         return chatSession;
     }
     public boolean deviceRegister(RegisterInfoHolder info) {

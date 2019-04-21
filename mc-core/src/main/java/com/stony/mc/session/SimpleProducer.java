@@ -4,8 +4,10 @@ import com.alibaba.fastjson.JSONObject;
 import com.stony.mc.ResourceManger;
 import com.stony.mc.Utils;
 import com.stony.mc.future.ResultFuture;
+import com.stony.mc.future.ResultFutureStore;
 import com.stony.mc.ids.IdGenerator;
 import com.stony.mc.ids.SimpleIdGenerator;
+import com.stony.mc.listener.SubscribeListener;
 import com.stony.mc.manager.ChatSession;
 import com.stony.mc.manager.RegisterInfo;
 import com.stony.mc.protocol.ExchangeProtocol;
@@ -101,8 +103,9 @@ public class SimpleProducer extends BaseClient {
     private void initConnectWorker() throws Exception{
         if(delegateClient == null || !delegateClient.isLive()) {
             for (HostPort hostPort: delegateHostPorts.values()) {
-                InnerProducerClient workerClient = new InnerProducerClient(getTimeoutMs())
-                        .idleReadTime(getIdleReadTime()).idleWriteTime(getIdleReadTime());
+                InnerProducerClient workerClient = new InnerProducerClient(getFutureStore(), getTimeoutMs())
+                        .idleReadTime(getIdleReadTime())
+                        .idleWriteTime(getIdleReadTime());
                 try {
                     workerClient.connect(hostPort.getHost(), hostPort.getPort());
                     if(workerClient.isLive()) {
@@ -219,6 +222,8 @@ public class SimpleProducer extends BaseClient {
             shutdownFinished.await();
         } catch (InterruptedException e) {
             logger.error("Interrupted while waiting for shutdown.", e);
+        } finally {
+            shutdown();
         }
     }
     public ResultFuture register(RegisterInfo info) {
@@ -283,11 +288,16 @@ public class SimpleProducer extends BaseClient {
         this.idWorker = idWorker;
     }
 
-
+    @Override
+    public void setSubscribeListener(SubscribeListener subscribeListener) {
+        Objects.requireNonNull(delegateClient, "the producer have to connect");
+        Objects.requireNonNull(subscribeListener, "the subscribe must be not null");
+        delegateClient.setSubscribeListener(subscribeListener);
+    }
 
     class InnerProducerClient extends BaseClient<InnerProducerClient>{
-        public InnerProducerClient(int timeoutMs) {
-            super(timeoutMs);
+        public InnerProducerClient(ResultFutureStore futureStore, int timeoutMs) {
+            super(futureStore, timeoutMs);
         }
 
         @Override

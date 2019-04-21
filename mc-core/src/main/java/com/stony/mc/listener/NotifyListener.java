@@ -8,20 +8,20 @@ import com.stony.mc.protocol.ExchangeTypeEnum;
  * <p>com.stony.mc.listener
  *
  * @author stony
- * @version 上午10:10
- * @since 2019/4/18
+ * @version 下午16:10
+ * @since 2019/4/21
  */
-public interface ChatListener extends SubscribeListener {
-
+public interface NotifyListener extends SubscribeListener{
+    @Override
     default void onSubscribe(ExchangeProtocol value) {
         if(support(value.getType())) {
-            onChat(value);
+            onNotify(value);
         }
     }
     //TODO 消息实体优化
-    void onChat(ExchangeProtocol value);
+    void onNotify(ExchangeProtocol value);
 
     default boolean support(ExchangeTypeEnum typeEnum) {
-        return ExchangeTypeEnum.CHAT == typeEnum;
+        return ExchangeTypeEnum.NOTIFY == typeEnum;
     }
 }

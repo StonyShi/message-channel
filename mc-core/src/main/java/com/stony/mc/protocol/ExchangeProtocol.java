@@ -182,6 +182,10 @@ public class ExchangeProtocol implements Serializable {
         this.body = body;
     }
 
+    public ExchangeProtocol body(ExchangeBody body) {
+        this.body = body;
+        return this;
+    }
     public ExchangeBody getBody() {
         return body;
     }

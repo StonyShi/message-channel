@@ -40,7 +40,7 @@ public class HostPort {
     }
     public String toJson() {
         return "{" +
-                "host:'" + host + '\'' +
+                "host:" + (host == null ? null : ("'" + host + '\'')) +
                 ", port:" + port +
                 '}';
     }
@@ -69,7 +69,7 @@ public class HostPort {
     @Override
     public String toString() {
         return "{" +
-                "host='" + host + '\'' +
+                "host=" + (host == null ? null : ("'" + host + '\'')) +
                 ", port=" + port +
                 '}';
     }

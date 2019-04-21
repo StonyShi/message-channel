@@ -1,6 +1,8 @@
 package com.stony.mc;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.alibaba.fastjson.JSONPObject;
 import com.alibaba.fastjson.TypeReference;
 import com.stony.mc.manager.RegisterInfo;
 import com.stony.mc.manager.RegisterInfoFilter;
@@ -82,6 +84,18 @@ public class JsonTest {
         list = JSONObject.parseObject(list.stream().map(v -> v.toJson()).collect(Collectors.joining(",", "[", "]")),
                 new TypeReference<List<HostPort>>(){});
         System.out.println(list);
+
+    }
+
+    @Test
+    public void test_host2() {
+        HostPort hostPort = new HostPort(null, 91);
+        System.out.println(JSON.toJSONString(hostPort));
+        System.out.println(hostPort.toJson());
+        HostPort hostPort1 = JSON.parseObject(hostPort.toJson(), HostPort.class);
+        HostPort hostPort2 = JSON.parseObject(JSON.toJSONString(hostPort), HostPort.class);
+        System.out.println(hostPort1);
+        System.out.println(hostPort2);
 
     }
 

@@ -51,10 +51,12 @@ public class MasterServer extends BaseServer<MasterServer> implements BusinessHa
             return ExchangeProtocol.ack(request.getId());
         }
     }
+    //TODO 设备注册逻辑处理
     protected void processDeviceRegister(ExchangeProtocolContext request) {
         RegisterInfo registerInfo = JSONObject.parseObject(request.getBody().getValue(), RegisterInfo.class);
         System.out.println(registerInfo);
     }
+    //TODO 心跳信息维度加强， 系统信息、版本、内存占用， 细化每个连接监控信息
     protected void processServerInfo(ExchangeProtocolContext request) {
         ServerInfo serverInfo = JSONObject.parseObject(request.getBody().getValue(), ServerInfo.class);
 

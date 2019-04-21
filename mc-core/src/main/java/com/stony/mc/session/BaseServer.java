@@ -147,7 +147,7 @@ public abstract class BaseServer<T extends BaseServer> implements MCServer, Clos
             this.channelId = originChannel.id();
             channelManager.setServerName(serverName);
             channelManager.setServerPort(serverPort);
-            logger.info("Startup server : {}", originChannel.toString());
+            logger.info("Startup server : {} Succeed", originChannel.toString());
         }
         return this;
     }
