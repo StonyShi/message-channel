@@ -96,7 +96,7 @@ public abstract class BaseClient<T extends BaseClient> implements MCClient, Idle
 
                 Bootstrap client = new Bootstrap();
                 client.group(group)
-                        .remoteAddress(serverHost, serverPort)
+//                        .remoteAddress(serverHost, serverPort)
                         .channel(NioSocketChannel.class)
                         .option(ChannelOption.SO_KEEPALIVE, true)
                         .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, timeoutMs);
@@ -115,7 +115,7 @@ public abstract class BaseClient<T extends BaseClient> implements MCClient, Idle
                         ;
                     }
                 });
-                ChannelFuture future = client.connect().sync();
+                ChannelFuture future = this.clientConnect(client, serverHost, serverPort).sync();
                 this.originChannel = future.channel();
                 logger.info("Connect to [{}:{}] is succeed.", serverHost, serverPort);
             } catch (Exception e) {
@@ -125,6 +125,9 @@ public abstract class BaseClient<T extends BaseClient> implements MCClient, Idle
             }
         }
         return (T) this;
+    }
+    protected ChannelFuture clientConnect(Bootstrap client, String serverHost, int serverPort) {
+        return client.connect(serverHost, serverPort);
     }
 
     public T connect(int reties) throws Exception {
